@@ -385,7 +385,7 @@ export default function HomePage() {
 
   // 워드 다운로드 함수 (HTML 형식)
   const downloadWord = (data: AnalysisResult) => {
-    let htmlContent = `
+    const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
