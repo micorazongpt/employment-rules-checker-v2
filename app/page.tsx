@@ -42,12 +42,16 @@ export default function HomePage() {
   const [progress, setProgress] = useState(0);
   const [showBlog, setShowBlog] = useState(false);
   const [showFAQ, setShowFAQ] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
   // 다크모드 초기화
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+      const savedApiKey = localStorage.getItem('openai_api_key') || '';
       setDarkMode(savedDarkMode);
+      setApiKey(savedApiKey);
       document.documentElement.classList.toggle('dark', savedDarkMode);
     }
   }, []);
@@ -60,6 +64,14 @@ export default function HomePage() {
       localStorage.setItem('darkMode', String(newDarkMode));
       document.documentElement.classList.toggle('dark', newDarkMode);
     }
+  };
+
+  // API 키 저장
+  const saveApiKey = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('openai_api_key', apiKey);
+    }
+    setShowApiKeyModal(false);
   };
 
   // 파일 검증
@@ -131,13 +143,12 @@ export default function HomePage() {
     setProgress(0);
     const interval = setInterval(() => {
       setProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
+        if (prev >= 95) {
+          return prev;
         }
-        return prev + Math.random() * 15;
+        return prev + Math.random() * 10;
       });
-    }, 200);
+    }, 500);
     return interval;
   };
 
@@ -161,169 +172,164 @@ export default function HomePage() {
     });
   };
 
-  // 실제 취업규칙 분석 함수
-  const analyzeEmploymentRules = (content: string, fileName: string): AnalysisResult => {
-    // 텍스트 길이와 내용 기반 분석
-    const textLength = content.length;
-    const lines = content.split('\n').filter(line => line.trim().length > 0);
-    
-    // 핵심 키워드 체크
-    const keywords = {
-      workingHours: ['근로시간', '업무시간', '40시간', '주휴일'],
-      restTime: ['휴게시간', '휴식시간', '30분', '1시간'],
-      vacation: ['연차', '휴가', '유급휴가', '연월차'],
-      salary: ['임금', '급여', '월급', '시급', '수당'],
-      retirement: ['퇴직', '퇴직금', '퇴직급여'],
-      discipline: ['징계', '해고', '처벌', '벌칙'],
-      overtime: ['연장근로', '야근', '초과근무', '휴일근무']
-    };
-
-    // 키워드 매칭 점수 계산
-    const scores = Object.entries(keywords).map(([category, words]) => {
-      const found = words.filter(word => content.includes(word)).length;
-      const score = Math.min(100, (found / words.length) * 100 + Math.random() * 20);
-      return { category, score: Math.round(score) };
-    });
-
-    // 전체 준수율 계산 (실제 내용 기반)
-    const avgScore = scores.reduce((sum, item) => sum + item.score, 0) / scores.length;
-    const complianceScore = Math.round(avgScore);
-    
-    // 위험 수준 결정
-    let riskLevel = '낮음';
-    if (complianceScore < 70) riskLevel = '높음';
-    else if (complianceScore < 85) riskLevel = '중간';
-
-    // 등급 결정
-    let grade = 'A';
-    if (complianceScore < 60) grade = 'D';
-    else if (complianceScore < 70) grade = 'C';
-    else if (complianceScore < 80) grade = 'C+';
-    else if (complianceScore < 90) grade = 'B+';
-
-    // 실제 내용 기반 분석 결과 생성
-    const requiredItems = [
-      {
-        item: '근로시간 규정',
-        status: keywords.workingHours.some(w => content.includes(w)) ? '준수' : '개선필요',
-        description: keywords.workingHours.some(w => content.includes(w)) 
-          ? '주 40시간 근로시간 원칙이 문서에 반영되어 있습니다.'
-          : '근로시간에 대한 명확한 규정이 부족합니다.',
-        compliance: scores.find(s => s.category === 'workingHours')?.score || 60
-      },
-      {
-        item: '휴게시간 규정',
-        status: keywords.restTime.some(w => content.includes(w)) ? '준수' : '개선필요',
-        description: keywords.restTime.some(w => content.includes(w))
-          ? '휴게시간 규정이 적절히 명시되어 있습니다.'
-          : '휴게시간에 대한 구체적인 명시가 필요합니다.',
-        compliance: scores.find(s => s.category === 'restTime')?.score || 50
-      },
-      {
-        item: '연차휴가 규정',
-        status: keywords.vacation.some(w => content.includes(w)) ? '준수' : '개선필요',
-        description: keywords.vacation.some(w => content.includes(w))
-          ? '연차휴가 부여 기준이 문서에 포함되어 있습니다.'
-          : '연차휴가 관련 규정이 부족합니다.',
-        compliance: scores.find(s => s.category === 'vacation')?.score || 70
-      },
-      {
-        item: '임금 지급 규정',
-        status: keywords.salary.some(w => content.includes(w)) ? '준수' : '개선필요',
-        description: keywords.salary.some(w => content.includes(w))
-          ? '임금 지급에 관한 규정이 포함되어 있습니다.'
-          : '임금 지급 기준과 방법에 대한 명시가 필요합니다.',
-        compliance: scores.find(s => s.category === 'salary')?.score || 65
-      },
-      {
-        item: '퇴직급여 규정',
-        status: keywords.retirement.some(w => content.includes(w)) ? '준수' : '개선필요',
-        description: keywords.retirement.some(w => content.includes(w))
-          ? '퇴직급여 관련 규정이 적절히 명시되어 있습니다.'
-          : '퇴직급여 산정 기준에 대한 세부 규정이 필요합니다.',
-        compliance: scores.find(s => s.category === 'retirement')?.score || 55
-      }
-    ];
-
-    // 실제 분석된 위험 요소
-    const riskFactors = [
-      {
-        factor: '징계 절차',
-        level: keywords.discipline.some(w => content.includes(w)) ? '낮음' : '중간',
-        description: keywords.discipline.some(w => content.includes(w))
-          ? '징계 관련 절차가 문서에 명시되어 있습니다.'
-          : '징계 절차에서 근로자의 소명 기회 보장 규정이 부족합니다.',
-        recommendation: keywords.discipline.some(w => content.includes(w))
-          ? '현재 규정을 유지하되, 세부 절차를 보완하세요.'
-          : '징계위원회 구성 및 소명 절차를 명확히 규정하세요.'
-      },
-      {
-        factor: '연장근로 관리',
-        level: keywords.overtime.some(w => content.includes(w)) ? '낮음' : '중간',
-        description: keywords.overtime.some(w => content.includes(w))
-          ? '연장근로에 대한 규정이 포함되어 있습니다.'
-          : '연장근로 승인 절차와 제한에 대한 규정이 미흡합니다.',
-        recommendation: keywords.overtime.some(w => content.includes(w))
-          ? '연장근로 제한 시간을 명확히 하세요.'
-          : '연장근로 사전 승인제도와 제한 규정을 추가하세요.'
-      }
-    ];
-
-    // 개선 권고사항 (실제 분석 기반)
-    const recommendations = requiredItems
-      .filter(item => item.status === '개선필요')
-      .map(item => ({
-        priority: item.compliance < 60 ? '높음' : '중간',
-        item: item.item,
-        action: `${item.item}에 대한 구체적인 기준과 절차를 명문화하여 규정에 추가`,
-        deadline: item.compliance < 60 ? '1개월 이내' : '3개월 이내'
-      }));
-
-    // 기본 권고사항 추가
-    if (recommendations.length < 2) {
-      recommendations.push({
-        priority: '낮음',
-        item: '정기 검토 체계 구축',
-        action: '법령 개정에 따른 정기적인 취업규칙 검토 체계 마련',
-        deadline: '6개월 이내'
-      });
+  // OpenAI API 호출 함수
+  const callOpenAI = async (content: string, fileName: string): Promise<AnalysisResult> => {
+    if (!apiKey) {
+      throw new Error('OpenAI API 키가 설정되지 않았습니다.');
     }
 
-    return {
-      fileName,
-      fileSize: `${(textLength / 1024).toFixed(1)} KB`,
-      riskLevel,
-      summary: `파일 분석 결과 총 ${lines.length}개 조항을 검토했습니다. ${requiredItems.filter(item => item.status === '준수').length}개 항목이 법령을 준수하고 있으며, ${requiredItems.filter(item => item.status === '개선필요').length}개 항목에서 개선이 필요합니다. 전반적으로 ${complianceScore >= 80 ? '양호한' : complianceScore >= 70 ? '보통' : '미흡한'} 수준의 법적 준수 상태를 보입니다.`,
-      complianceScore,
-      complianceGrade: grade,
-      analysisDate: new Date().toLocaleDateString('ko-KR'),
-      analysisTime: new Date().toLocaleTimeString('ko-KR'),
-      requiredItems,
-      riskFactors,
-      recommendations
-    };
+    const prompt = `
+다음은 취업규칙 문서입니다. 한국의 근로기준법 및 관련 법령에 따라 상세히 분석해주세요.
+
+파일명: ${fileName}
+내용:
+${content}
+
+다음 형식으로 JSON 응답해주세요:
+{
+  "complianceScore": 점수(0-100),
+  "riskLevel": "높음|중간|낮음",
+  "summary": "분석 요약 (2-3문장)",
+  "requiredItems": [
+    {
+      "item": "항목명",
+      "status": "준수|개선필요",
+      "description": "설명",
+      "compliance": 점수(0-100)
+    }
+  ],
+  "riskFactors": [
+    {
+      "factor": "위험요소명",
+      "level": "높음|중간|낮음",
+      "description": "설명",
+      "recommendation": "권고사항"
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "높음|중간|낮음",
+      "item": "개선항목",
+      "action": "조치사항",
+      "deadline": "완료목표"
+    }
+  ]
+}
+
+중요 검토 항목:
+1. 근로시간 규정 (주 40시간 원칙, 연장근로 제한)
+2. 휴게시간 규정 (4시간 이상 30분, 8시간 이상 1시간)
+3. 연차휴가 규정 (법정 연차 기준)
+4. 임금 지급 규정 (최저임금, 지급일, 지급방법)
+5. 퇴직급여 규정 (퇴직금 또는 퇴직연금)
+6. 징계 절차 (소명 기회 보장)
+7. 해고 절차 (정당한 사유, 절차)
+8. 육아지원 규정 (2025년 개정사항 반영)
+9. 안전보건 규정
+10. 취업규칙 신고 및 변경 절차
+
+2025년 육아지원3법 개정사항을 반영하여 분석해주세요.
+`;
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: '당신은 한국의 노무 전문가입니다. 취업규칙을 근로기준법 및 관련 법령에 따라 정확하게 분석하고, 실용적인 개선 방안을 제시합니다. 응답은 반드시 유효한 JSON 형식이어야 합니다.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 3000,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `API 호출 실패: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const aiResponse = data.choices[0].message.content;
+
+      // JSON 파싱
+      let analysisData;
+      try {
+        // JSON 응답에서 코드 블록 제거
+        const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/) || aiResponse.match(/\{[\s\S]*\}/);
+        const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : aiResponse;
+        analysisData = JSON.parse(jsonStr);
+      } catch (parseError) {
+        console.error('JSON 파싱 오류:', parseError);
+        console.log('원본 응답:', aiResponse);
+        throw new Error('AI 응답을 파싱할 수 없습니다.');
+      }
+
+      // 등급 계산
+      const score = analysisData.complianceScore;
+      let grade = 'A';
+      if (score < 60) grade = 'D';
+      else if (score < 70) grade = 'C';
+      else if (score < 80) grade = 'C+';
+      else if (score < 90) grade = 'B+';
+
+      // 결과 구성
+      const result: AnalysisResult = {
+        fileName,
+        fileSize: `${(content.length / 1024).toFixed(1)} KB`,
+        riskLevel: analysisData.riskLevel,
+        summary: analysisData.summary,
+        complianceScore: analysisData.complianceScore,
+        complianceGrade: grade,
+        analysisDate: new Date().toLocaleDateString('ko-KR'),
+        analysisTime: new Date().toLocaleTimeString('ko-KR'),
+        requiredItems: analysisData.requiredItems || [],
+        riskFactors: analysisData.riskFactors || [],
+        recommendations: analysisData.recommendations || []
+      };
+
+      return result;
+
+    } catch (error) {
+      console.error('OpenAI API 오류:', error);
+      throw error;
+    }
   };
 
-  // 분석 시작 (실제 파일 내용 기반)
+  // 분석 시작 (OpenAI API 사용)
   const startAnalysis = async () => {
     if (!file) {
-      console.log('파일이 선택되지 않았습니다.');
       setError('파일을 먼저 선택해주세요.');
       return;
     }
 
-    console.log('실제 파일 분석 시작:', file.name);
+    if (!apiKey) {
+      setShowApiKeyModal(true);
+      return;
+    }
+
+    console.log('OpenAI API를 사용한 실제 분석 시작:', file.name);
     setIsAnalyzing(true);
     setError(null);
     
     const progressInterval = simulateProgress();
 
     try {
-      // 실제 파일 내용 읽기
+      // 파일 내용 읽기
       const content = await readFileContent(file);
       console.log('파일 내용 읽기 완료, 길이:', content.length);
       
-      // 파일 내용이 너무 짧으면 경고
       if (content.length < 100) {
         setError('파일 내용이 너무 짧습니다. 올바른 취업규칙 문서인지 확인해주세요.');
         setIsAnalyzing(false);
@@ -331,20 +337,21 @@ export default function HomePage() {
         return;
       }
 
-      // 실제 내용 기반 분석 (2초 지연으로 자연스럽게)
+      // OpenAI API 호출
+      const analysisResult = await callOpenAI(content, file.name);
+      console.log('OpenAI 분석 완료:', analysisResult);
+      
+      setProgress(100);
       setTimeout(() => {
-        const analysisResult = analyzeEmploymentRules(content, file.name);
-        console.log('실제 분석 완료:', analysisResult);
-        
         setAnalysisResult(analysisResult);
         clearInterval(progressInterval);
-        setProgress(100);
         setIsAnalyzing(false);
-      }, 2000);
+      }, 500);
 
     } catch (error) {
-      console.error('파일 읽기 오류:', error);
-      setError('파일을 읽는 중 오류가 발생했습니다. 파일 형식을 확인해주세요.');
+      console.error('분석 오류:', error);
+      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
+      setError(`분석 중 오류가 발생했습니다: ${errorMessage}`);
       setIsAnalyzing(false);
       clearInterval(progressInterval);
     }
@@ -517,7 +524,7 @@ export default function HomePage() {
 <body>
     <div class="header">
         <div class="title">🏢 취업규칙 AI 분석 결과</div>
-        <p>AI가 분석한 법적 준수 여부 및 개선 권고사항</p>
+        <p>OpenAI GPT-4가 분석한 법적 준수 여부 및 개선 권고사항</p>
     </div>
 
     <div class="section">
@@ -614,7 +621,7 @@ export default function HomePage() {
     </div>
 
     <div style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #666; font-size: 12px;">
-        <p>본 분석 결과는 AI에 의해 생성되었으며, 참고용으로만 사용하시기 바랍니다.</p>
+        <p>본 분석 결과는 OpenAI GPT-4에 의해 생성되었으며, 참고용으로만 사용하시기 바랍니다.</p>
         <p>정확한 법적 검토를 위해서는 전문가 상담을 받으시기 바랍니다.</p>
     </div>
 </body>
@@ -678,8 +685,8 @@ export default function HomePage() {
       tags: ["취업규칙", "근로기준법", "필수사항"]
     },
     {
-      title: "AI가 발견한 취업규칙 10대 위험요소",
-      excerpt: "수천 건의 취업규칙 분석을 통해 AI가 찾아낸 가장 빈번한 법적 위험요소들과 해결방안을 소개합니다.",
+      title: "OpenAI GPT-4가 분석하는 취업규칙 위험요소",
+      excerpt: "최신 AI 기술을 활용하여 취업규칙의 법적 위험요소를 정밀하게 분석하고 개선방안을 제시합니다.",
       date: "2025-01-05",
       tags: ["AI분석", "위험요소", "법적리스크"]
     }
@@ -687,6 +694,14 @@ export default function HomePage() {
 
   // FAQ 데이터
   const faqs = [
+    {
+      question: "OpenAI API 키는 어떻게 발급받나요?",
+      answer: "OpenAI 웹사이트(platform.openai.com)에 가입 후 API Keys 메뉴에서 새 API 키를 생성할 수 있습니다. API 키는 안전하게 보관하시고, 다른 사람과 공유하지 마세요."
+    },
+    {
+      question: "API 키가 저장되나요?",
+      answer: "API 키는 브라우저의 로컬 스토리지에만 저장되며, 서버로 전송되지 않습니다. 언제든지 삭제할 수 있습니다."
+    },
     {
       question: "취업규칙 검토는 얼마나 자주 해야 하나요?",
       answer: "법령 개정이나 사업장 규모 변경 시 즉시 검토가 필요하며, 일반적으로 연 1회 정기 검토를 권장합니다. 특히 근로기준법, 남녀고용평등법 등 주요 법령이 개정될 때는 반드시 검토해야 합니다."
@@ -698,10 +713,6 @@ export default function HomePage() {
     {
       question: "어떤 파일 형식을 지원하나요?",
       answer: "TXT, PDF, DOC, DOCX 파일을 지원합니다. 파일 크기는 최대 10MB까지 업로드 가능합니다."
-    },
-    {
-      question: "분석 결과를 다른 형태로 다운로드할 수 있나요?",
-      answer: "네, 엑셀(CSV), 워드(DOC), 구글시트(TSV) 형태로 다운로드하거나 클립보드로 복사할 수 있습니다."
     }
   ];
 
@@ -709,24 +720,24 @@ export default function HomePage() {
     <>
       {/* SEO 메타 태그 */}
       <Head>
-        <title>취업규칙 검토 시스템 | AI 무료 분석 도구 | 근로기준법 준수 확인</title>
-        <meta name="description" content="AI가 3분만에 취업규칙을 무료로 검토해드립니다. 근로기준법 준수 여부, 법적 리스크 분석, 개선사항 제안까지! 2025년 육아지원3법 개정사항 반영." />
-        <meta name="keywords" content="취업규칙, 근로계약서, 근로기준법, AI 분석, 무료 검토, 육아지원3법, 법적 리스크, 컴플라이언스" />
+        <title>취업규칙 검토 시스템 | OpenAI GPT-4 AI 분석 도구 | 근로기준법 준수 확인</title>
+        <meta name="description" content="OpenAI GPT-4가 취업규칙을 정밀 분석해드립니다. 근로기준법 준수 여부, 법적 리스크 분석, 개선사항 제안까지! 2025년 육아지원3법 개정사항 반영." />
+        <meta name="keywords" content="취업규칙, 근로계약서, 근로기준법, OpenAI, GPT-4, AI 분석, 무료 검토, 육아지원3법, 법적 리스크, 컴플라이언스" />
         <meta name="robots" content="index, follow" />
         <meta name="author" content="취업규칙 검토 시스템" />
         <link rel="canonical" href="https://employment-rules-checker-v2.vercel.app" />
         
         {/* Open Graph 메타 태그 */}
-        <meta property="og:title" content="취업규칙 검토 시스템 | AI 무료 분석 도구" />
-        <meta property="og:description" content="AI가 3분만에 취업규칙을 무료로 검토해드립니다. 근로기준법 준수 여부, 법적 리스크 분석, 개선사항 제안까지!" />
+        <meta property="og:title" content="취업규칙 검토 시스템 | OpenAI GPT-4 AI 분석 도구" />
+        <meta property="og:description" content="OpenAI GPT-4가 취업규칙을 정밀 분석해드립니다. 근로기준법 준수 여부, 법적 리스크 분석, 개선사항 제안까지!" />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://employment-rules-checker-v2.vercel.app" />
         <meta property="og:image" content="https://employment-rules-checker-v2.vercel.app/og-image.jpg" />
         
         {/* Twitter 카드 */}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="취업규칙 검토 시스템 | AI 무료 분석 도구" />
-        <meta name="twitter:description" content="AI가 3분만에 취업규칙을 무료로 검토해드립니다. 근로기준법 준수 여부, 법적 리스크 분석, 개선사항 제안까지!" />
+        <meta name="twitter:title" content="취업규칙 검토 시스템 | OpenAI GPT-4 AI 분석 도구" />
+        <meta name="twitter:description" content="OpenAI GPT-4가 취업규칙을 정밀 분석해드립니다. 근로기준법 준수 여부, 법적 리스크 분석, 개선사항 제안까지!" />
         
         {/* 구조화된 데이터 (JSON-LD) */}
         <script type="application/ld+json">
@@ -734,7 +745,7 @@ export default function HomePage() {
             "@context": "https://schema.org",
             "@type": "WebApplication",
             "name": "취업규칙 검토 시스템",
-            "description": "AI가 3분만에 취업규칙을 무료로 검토해드립니다",
+            "description": "OpenAI GPT-4가 취업규칙을 정밀 분석해드립니다",
             "url": "https://employment-rules-checker-v2.vercel.app",
             "applicationCategory": "BusinessApplication",
             "operatingSystem": "Web",
@@ -750,6 +761,46 @@ export default function HomePage() {
           })}
         </script>
       </Head>
+
+      {/* API 키 설정 모달 */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-lg w-full">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">🔑 OpenAI API 키 설정</h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              정확한 AI 분석을 위해 OpenAI API 키가 필요합니다.<br/>
+              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                OpenAI 웹사이트
+              </a>에서 API 키를 발급받으세요.
+            </p>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="sk-... (OpenAI API 키를 입력하세요)"
+              className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white mb-4"
+            />
+            <div className="flex space-x-4">
+              <button
+                onClick={saveApiKey}
+                disabled={!apiKey.startsWith('sk-')}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                저장
+              </button>
+              <button
+                onClick={() => setShowApiKeyModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                취소
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
+              💡 API 키는 브라우저에만 저장되며 서버로 전송되지 않습니다.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className={`min-h-screen transition-colors duration-200 ${
         darkMode ? 'dark bg-gray-900' : 'bg-gray-50'
@@ -769,7 +820,7 @@ export default function HomePage() {
                 <p className={`mt-2 text-lg transition-colors duration-200 ${
                   darkMode ? 'text-gray-300' : 'text-gray-600'
                 }`}>
-                  AI가 3분만에 취업규칙을 검토하고 법적 준수 여부를 확인해드립니다
+                  OpenAI GPT-4가 취업규칙을 정밀 분석하고 법적 준수 여부를 확인해드립니다
                 </p>
               </div>
               
@@ -794,6 +845,23 @@ export default function HomePage() {
                   }`}
                 >
                   FAQ
+                </button>
+                
+                {/* API 키 설정 버튼 */}
+                <button
+                  onClick={() => setShowApiKeyModal(true)}
+                  className={`px-4 py-2 rounded-lg transition-colors duration-200 ${
+                    apiKey 
+                      ? darkMode 
+                        ? 'bg-green-700 text-green-200 hover:bg-green-600' 
+                        : 'bg-green-100 text-green-800 hover:bg-green-200'
+                      : darkMode 
+                        ? 'bg-red-700 text-red-200 hover:bg-red-600' 
+                        : 'bg-red-100 text-red-800 hover:bg-red-200'
+                  }`}
+                  title={apiKey ? 'API 키 설정됨' : 'API 키 설정 필요'}
+                >
+                  🔑 API
                 </button>
                 
                 {/* 다크모드 토글 */}
@@ -869,6 +937,29 @@ export default function HomePage() {
 
           {!analysisResult ? (
             <div className="space-y-8">
+              {/* OpenAI API 키 안내 */}
+              {!apiKey && (
+                <div className="border rounded-2xl p-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-100 dark:border-blue-800">
+                  <div className="flex items-center mb-4">
+                    <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-800 flex items-center justify-center mr-4">
+                      <svg className="w-6 h-6 text-blue-600 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-3a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-200">🔑 OpenAI API 키 설정 필요</h3>
+                      <p className="text-blue-700 dark:text-blue-300">정확한 AI 분석을 위해 OpenAI API 키를 설정해주세요.</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowApiKeyModal(true)}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors duration-200"
+                  >
+                    API 키 설정하기
+                  </button>
+                </div>
+              )}
+
               {/* 파일 업로드 영역 */}
               <div 
                 className={`relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-200 ${
@@ -915,10 +1006,10 @@ export default function HomePage() {
                       </div>
                       
                       <p className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                        🤖 AI 분석 진행중
+                        🤖 OpenAI GPT-4 분석 진행중
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                        법적 준수 여부를 검토하고 있습니다...
+                        법적 준수 여부를 정밀 검토하고 있습니다...
                       </p>
                       
                       {/* 진행률 바 */}
@@ -996,7 +1087,7 @@ export default function HomePage() {
                     onClick={startAnalysis}
                     className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white text-base rounded-2xl transition-all duration-200 font-semibold shadow-sm hover:shadow-md active:scale-95 w-full sm:w-auto"
                   >
-                    🤖 AI 분석 시작
+                    🤖 OpenAI GPT-4 분석 시작
                   </button>
                 ) : !file && !isAnalyzing ? (
                   <div className="px-8 py-4 bg-gray-100 dark:bg-gray-700 text-gray-400 text-base rounded-2xl font-semibold w-full sm:w-auto text-center cursor-not-allowed">
@@ -1015,8 +1106,8 @@ export default function HomePage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                         </svg>
                       </div>
-                      <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-white">법적 준수 검토</h3>
-                      <p className="leading-relaxed text-gray-600 dark:text-gray-300">근로기준법 및 관련 법령 준수 여부를 정밀 분석합니다</p>
+                      <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-white">OpenAI GPT-4 분석</h3>
+                      <p className="leading-relaxed text-gray-600 dark:text-gray-300">최신 AI 기술로 근로기준법 및 관련 법령 준수 여부를 정밀 분석합니다</p>
                     </div>
                     
                     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-8 text-center">
@@ -1026,7 +1117,7 @@ export default function HomePage() {
                         </svg>
                       </div>
                       <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-white">위험요소 식별</h3>
-                      <p className="leading-relaxed text-gray-600 dark:text-gray-300">잠재적 법적 리스크와 개선이 필요한 부분을 찾아냅니다</p>
+                      <p className="leading-relaxed text-gray-600 dark:text-gray-300">잠재적 법적 리스크와 개선이 필요한 부분을 AI가 찾아냅니다</p>
                     </div>
                     
                     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-8 text-center">
@@ -1036,7 +1127,7 @@ export default function HomePage() {
                         </svg>
                       </div>
                       <h3 className="text-xl font-bold mb-3 text-gray-900 dark:text-white">개선방안 제시</h3>
-                      <p className="leading-relaxed text-gray-600 dark:text-gray-300">구체적이고 실행 가능한 개선 권고사항을 제공합니다</p>
+                      <p className="leading-relaxed text-gray-600 dark:text-gray-300">구체적이고 실행 가능한 개선 권고사항을 AI가 제공합니다</p>
                     </div>
                   </div>
 
@@ -1070,7 +1161,33 @@ export default function HomePage() {
                       </div>
                     </div>
                     <p className="text-sm mt-4 text-purple-700 dark:text-purple-400">
-                      최신 법령 개정사항이 자동으로 분석에 반영됩니다
+                      OpenAI GPT-4가 최신 법령 개정사항을 자동으로 분석에 반영합니다
+                    </p>
+                  </div>
+
+                  {/* OpenAI GPT-4 특별 안내 */}
+                  <div className="border rounded-2xl p-8 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border-green-100 dark:border-green-800">
+                    <h3 className="text-xl font-bold mb-4 text-green-900 dark:text-green-200">🤖 OpenAI GPT-4 기반 정밀 분석</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="flex items-center text-green-800 dark:text-green-300">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center mr-3 bg-green-100 dark:bg-green-800">
+                          <svg className="w-5 h-5 text-green-600 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364-.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                          </svg>
+                        </div>
+                        <span className="font-medium">최신 AI 기술 활용</span>
+                      </div>
+                      <div className="flex items-center text-green-800 dark:text-green-300">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center mr-3 bg-green-100 dark:bg-green-800">
+                          <svg className="w-5 h-5 text-green-600 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                          </svg>
+                        </div>
+                        <span className="font-medium">데이터 보안 보장</span>
+                      </div>
+                    </div>
+                    <p className="text-sm mt-4 text-green-700 dark:text-green-400">
+                      OpenAI API를 통해 업계 최고 수준의 AI 분석을 제공하며, 모든 데이터는 안전하게 처리됩니다
                     </p>
                   </div>
 
@@ -1103,7 +1220,7 @@ export default function HomePage() {
               <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
                 <div className="text-center mb-8">
                   <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-                    🎉 분석 완료!
+                    🎉 OpenAI GPT-4 분석 완료!
                   </h2>
                   <p className="text-gray-600 dark:text-gray-300">
                     파일: {analysisResult.fileName} ({analysisResult.fileSize})
@@ -1167,7 +1284,7 @@ export default function HomePage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">법적 준수율</h3>
-                      <p className="text-gray-600 dark:text-gray-300">전체 항목 대비 준수 비율</p>
+                      <p className="text-gray-600 dark:text-gray-300">OpenAI GPT-4가 분석한 전체 항목 대비 준수 비율</p>
                     </div>
                     <div className="text-right">
                       <div className="text-4xl font-bold text-blue-600 dark:text-blue-400">{analysisResult.complianceScore}%</div>
@@ -1178,7 +1295,7 @@ export default function HomePage() {
 
                 {/* 분석 요약 */}
                 <div className="bg-gray-50 dark:bg-gray-900/30 rounded-xl p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">📋 분석 요약</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">📋 AI 분석 요약</h3>
                   <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{analysisResult.summary}</p>
                 </div>
               </div>
@@ -1235,7 +1352,7 @@ export default function HomePage() {
                       <p className="text-gray-600 dark:text-gray-300 mb-2">{risk.description}</p>
                       <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
                         <p className="text-sm text-blue-700 dark:text-blue-300">
-                          <strong>권고사항:</strong> {risk.recommendation}
+                          <strong>AI 권고사항:</strong> {risk.recommendation}
                         </p>
                       </div>
                     </div>
@@ -1276,12 +1393,12 @@ export default function HomePage() {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                     <h4 className="font-semibold text-gray-900 dark:text-white mb-2">📊 연차 계산기</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">입사일 기준 정확한 연차 개수를 자동으로 계산해드립니다</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">입사일 기준 정확한 연차 개수를 AI가 자동으로 계산해드립니다</p>
                     <span className="inline-block mt-2 px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded-full">곧 출시</span>
                   </div>
                   <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                     <h4 className="font-semibold text-gray-900 dark:text-white mb-2">💰 퇴직금 계산기</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">근무기간별 정확한 퇴직금 산정을 도와드립니다</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">근무기간별 정확한 퇴직금 산정을 AI가 도와드립니다</p>
                     <span className="inline-block mt-2 px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded-full">곧 출시</span>
                   </div>
                 </div>
@@ -1298,7 +1415,7 @@ export default function HomePage() {
               <div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">취업규칙 검토 시스템</h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-4">
-                  AI 기술로 취업규칙의 법적 준수 여부를 신속하고 정확하게 검토해드립니다.
+                  OpenAI GPT-4 기술로 취업규칙의 법적 준수 여부를 신속하고 정확하게 검토해드립니다.
                 </p>
                 <div className="flex space-x-4">
                   <a href="#" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
@@ -1320,8 +1437,8 @@ export default function HomePage() {
               <div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">서비스</h3>
                 <ul className="space-y-2">
-                  <li><a href="#" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">취업규칙 검토</a></li>
-                  <li><a href="#" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">근로계약서 분석</a></li>
+                  <li><a href="#" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">OpenAI 취업규칙 검토</a></li>
+                  <li><a href="#" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">AI 근로계약서 분석</a></li>
                   <li><a href="#" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">법령 검색</a></li>
                   <li><a href="#" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">연차 계산기</a></li>
                   <li><a href="#" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">퇴직금 계산기</a></li>
@@ -1343,9 +1460,9 @@ export default function HomePage() {
 
             <div className="border-t border-gray-200 dark:border-gray-700 mt-8 pt-8">
               <div className="text-center text-gray-400 dark:text-gray-500">
-                <p className="mb-2">🔒 업로드된 파일은 분석 후 즉시 삭제되며, 어떠한 정보도 저장되지 않습니다.</p>
-                <p className="mb-4">⚖️ 본 서비스는 참고용이며, 정확한 법적 검토를 위해서는 전문가 상담을 받으시기 바랍니다.</p>
-                <p>&copy; 2025 취업규칙 검토 시스템. All rights reserved.</p>
+                <p className="mb-2">🔒 업로드된 파일은 분석 후 즉시 삭제되며, OpenAI API를 통해 안전하게 처리됩니다.</p>
+                <p className="mb-4">⚖️ 본 서비스는 OpenAI GPT-4 기반 참고용이며, 정확한 법적 검토를 위해서는 전문가 상담을 받으시기 바랍니다.</p>
+                <p>&copy; 2025 취업규칙 검토 시스템. All rights reserved. Powered by OpenAI GPT-4.</p>
               </div>
             </div>
           </div>
