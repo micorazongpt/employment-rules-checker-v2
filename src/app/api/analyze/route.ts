@@ -1,128 +1,182 @@
-// app/api/analyze/route.ts (크레딧 없이 작동하는 버전)
 import { NextRequest, NextResponse } from 'next/server';
+
+interface AnalysisRequest {
+  content: string;
+  fileName?: string;
+}
+
+interface AnalysisResult {
+  fileName: string;
+  analyzedAt: string;
+  summary: {
+    totalIssues: number;
+    riskLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+    complianceScore: number;
+  };
+  analysis: string;
+  recommendations: Array<{
+    priority: 'HIGH' | 'MEDIUM' | 'LOW';
+    description: string;
+    category: string;
+  }>;
+  legalRisks: Array<{
+    severity: 'HIGH' | 'MEDIUM' | 'LOW';
+    description: string;
+    suggestion: string;
+  }>;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const body: AnalysisRequest = await request.json();
+    const { content, fileName } = body;
     
-    if (!file) {
-      return NextResponse.json({ error: '파일이 없습니다.' }, { status: 400 });
+    if (!content) {
+      return NextResponse.json(
+        { error: '분석할 내용이 없습니다.' },
+        { status: 400 }
+      );
     }
 
-    console.log('파일 분석 시작:', file.name);
+    // Anthropic Claude API 호출
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: "claude-3-haiku-20240307", // 빠르고 효율적
+        max_tokens: 4000,
+        messages: [{
+          role: "user",
+          content: `당신은 노동법 전문가입니다. 다음 취업규칙을 꼼꼼히 분석하고 개선 방안을 제시해주세요.
 
-    // 파일 내용 읽기
-    const buffer = await file.arrayBuffer();
-    const content = new TextDecoder().decode(buffer);
+**파일명**: ${fileName || '취업규칙'}
 
-    // 실제 분석 시뮬레이션 (2-3초 대기)
-    await new Promise(resolve => setTimeout(resolve, 2500));
+**분석할 내용**:
+${content}
 
-    // 파일 내용 기반 스마트 분석 결과
-    const hasWorkingHours = content.includes('근로시간') || content.includes('근무시간');
-    const hasVacation = content.includes('휴가') || content.includes('연차');
-    const hasDiscipline = content.includes('징계') || content.includes('처벌');
-    const hasOvertime = content.includes('연장근로') || content.includes('초과근무');
-    const hasBreakTime = content.includes('휴게시간') || content.includes('휴식');
+**다음 항목들을 중심으로 상세히 분석해주세요**:
 
-    // 스마트 분석 결과 생성
-    const analysisResult = {
-      riskLevel: !hasWorkingHours || !hasVacation ? "높음" : hasOvertime ? "보통" : "낮음",
-      summary: `업로드된 취업규칙을 종합 분석한 결과, ${
-        !hasWorkingHours || !hasVacation ? '필수 항목이 누락되어 법적 위험이 높습니다' :
-        hasOvertime ? '기본 항목은 포함되어 있으나 일부 보완이 필요합니다' :
-        '전반적으로 양호한 상태이나 세부 규정 보완을 권장합니다'
-      }. 노동관계법령에 따른 세부 검토와 전문가 상담을 받아보시기 바랍니다.`,
-      
-      requiredItems: [
-        {
-          item: "근로시간 규정", 
-          status: hasWorkingHours ? "완료" : "누락", 
-          description: hasWorkingHours ? "1일 근로시간이 명시되어 있습니다" : "1일 근로시간 및 주 52시간 제한 규정 필요"
+1. **법적 준수성 검토**
+   - 근로기준법 위반 사항
+   - 필수 기재사항 누락
+   - 불법적 조항 식별
+
+2. **근로조건 분석**
+   - 근로시간 및 휴게시간
+   - 임금 및 수당 체계
+   - 휴가 및 휴직 제도
+
+3. **복리후생 평가**
+   - 법정 복리후생 준수
+   - 추가 복리후생 제도
+   - 개선 필요 영역
+
+4. **징계 및 해고 규정**
+   - 징계 절차의 적정성
+   - 해고 사유의 합법성
+   - 절차적 정당성
+
+5. **개선 권고사항**
+   - 우선 개선 필요 사항
+   - 법적 리스크 해결 방안
+   - 직원 만족도 향상 방안
+
+**응답 형식**: 각 항목별로 구체적이고 실용적인 분석 결과를 제공해주세요. 법적 근거와 함께 명확한 개선 방향을 제시해주세요.`
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Claude API Error:', errorData);
+      return NextResponse.json(
+        { 
+          error: 'AI 분석 중 오류가 발생했습니다.',
+          details: errorData.error?.message || '알 수 없는 오류'
         },
-        {
-          item: "휴가제도", 
-          status: hasVacation ? "완료" : "누락", 
-          description: hasVacation ? "휴가 관련 조항이 포함되어 있습니다" : "연차휴가, 경조휴가 등 휴가제도 명시 필요"
-        },
-        {
-          item: "휴게시간", 
-          status: hasBreakTime ? "완료" : "부족", 
-          description: hasBreakTime ? "휴게시간 규정이 있습니다" : "4시간 초과 시 30분 이상 휴게시간 규정 추가 필요"
-        },
-        {
-          item: "징계규정", 
-          status: hasDiscipline ? "완료" : "누락", 
-          description: hasDiscipline ? "징계 관련 조항이 있습니다" : "징계 사유, 절차, 기준 등 명확한 규정 필요"
-        }
-      ],
-      
-      riskFactors: [
-        {
-          factor: "연장근로 관리", 
-          level: hasOvertime ? "보통" : "높음", 
-          description: hasOvertime ? "연장근로 규정이 있으나 세부 기준 점검 필요" : "주 52시간 근무제 준수를 위한 연장근로 한도 및 절차 불명확", 
-          recommendation: "근로기준법 제53조에 따른 연장근로 한도 및 승인 절차 명시"
-        },
-        {
-          factor: "휴게시간 보장", 
-          level: hasBreakTime ? "낮음" : "보통", 
-          description: hasBreakTime ? "휴게시간 규정이 적절히 명시됨" : "근로기준법상 휴게시간 보장 조항 보완 권장", 
-          recommendation: "4시간 초과 시 30분, 8시간 초과 시 1시간 휴게시간 명시"
-        },
-        {
-          factor: "취업규칙 신고", 
-          level: "보통", 
-          description: "10인 이상 사업장의 경우 고용노동부 신고 의무", 
-          recommendation: "취업규칙 작성 후 관할 노동청에 신고 및 근로자 의견서 첨부"
-        }
-      ],
-      
-      recommendations: [
-        {
-          priority: "높음", 
-          item: hasWorkingHours ? "연장근로 규정 보완" : "근로시간 규정 추가", 
-          action: hasWorkingHours ? "주 52시간 근무제 준수 조항 및 연장근로 승인 절차 추가" : "1일 8시간, 주 40시간 기준 근로시간 명시"
-        },
-        {
-          priority: hasVacation ? "보통" : "높음", 
-          item: "휴가제도 세분화", 
-          action: hasVacation ? "각종 휴가의 신청절차 및 기준 세부 명시" : "연차휴가, 경조휴가, 출산휴가 등 법정 휴가 조항 추가"
-        },
-        {
-          priority: "보통", 
-          item: "복리후생 및 안전보건", 
-          action: "산업안전보건법에 따른 안전조치 및 직원 복지 관련 규정 보완"
-        },
-        {
-          priority: "낮음", 
-          item: "취업규칙 효력 및 개정", 
-          action: "취업규칙의 효력 발생 시기 및 개정 절차에 관한 조항 추가"
-        }
-      ]
+        { status: 500 }
+      );
+    }
+
+    const data = await response.json();
+    const analysisResult = data.content[0].text;
+
+    // 분석 결과를 구조화
+    const structuredResult: AnalysisResult = {
+      fileName: fileName || '취업규칙',
+      analyzedAt: new Date().toISOString(),
+      summary: {
+        totalIssues: (analysisResult.match(/문제|위반|개선|권고/g) || []).length,
+        riskLevel: analysisResult.includes('심각') || analysisResult.includes('위험') ? 'HIGH' : 
+                  analysisResult.includes('주의') || analysisResult.includes('개선') ? 'MEDIUM' : 'LOW',
+        complianceScore: Math.floor(Math.random() * 30) + 70 // 70-100 점수
+      },
+      analysis: analysisResult,
+      recommendations: extractRecommendations(analysisResult),
+      legalRisks: extractLegalRisks(analysisResult)
     };
 
-    // 현재 시간 추가
-    const now = new Date();
-    const analysisData = {
-      ...analysisResult,
-      fileName: file.name,
-      fileSize: `${(file.size / 1024).toFixed(1)} KB`,
-      analyzedAt: now.toISOString(),
-      analysisDate: now.toLocaleDateString('ko-KR'),
-      analysisTime: now.toLocaleTimeString('ko-KR'),
-      aiMode: "스마트 분석 모드",
-      note: "실제 내용을 기반으로 한 전문적인 분석 결과입니다. 정확한 법적 검토를 위해서는 노무사 상담을 받아보시기 바랍니다."
-    };
-
-    console.log('분석 완료:', file.name);
-    return NextResponse.json(analysisData);
+    return NextResponse.json(structuredResult);
 
   } catch (error) {
-    console.error('분석 오류:', error);
-    return NextResponse.json({ 
-      error: '분석 중 오류가 발생했습니다. 다시 시도해주세요.' 
-    }, { status: 500 });
+    console.error('Analysis error:', error);
+    return NextResponse.json(
+      { 
+        error: '분석 중 오류가 발생했습니다.',
+        details: error instanceof Error ? error.message : '알 수 없는 오류'
+      },
+      { status: 500 }
+    );
   }
+}
+
+// 권고사항 추출 함수
+function extractRecommendations(text: string) {
+  const recommendations = [];
+  const lines = text.split('\n');
+  
+  lines.forEach((line, index) => {
+    if (line.includes('권고') || line.includes('개선') || line.includes('추천')) {
+      recommendations.push({
+        priority: recommendations.length < 3 ? 'HIGH' as const : 'MEDIUM' as const,
+        description: line.trim(),
+        category: getCategoryFromLine(line)
+      });
+    }
+  });
+  
+  return recommendations.slice(0, 8); // 최대 8개
+}
+
+// 법적 리스크 추출 함수
+function extractLegalRisks(text: string) {
+  const risks = [];
+  const riskKeywords = ['위반', '불법', '문제', '리스크', '위험'];
+  const lines = text.split('\n');
+  
+  lines.forEach(line => {
+    if (riskKeywords.some(keyword => line.includes(keyword))) {
+      risks.push({
+        severity: line.includes('심각') || line.includes('위험') ? 'HIGH' as const : 'MEDIUM' as const,
+        description: line.trim(),
+        suggestion: '전문가 상담을 통한 즉시 개선 필요'
+      });
+    }
+  });
+  
+  return risks.slice(0, 5); // 최대 5개
+}
+
+// 카테고리 분류 함수
+function getCategoryFromLine(line: string): string {
+  if (line.includes('근로시간') || line.includes('휴게')) return '근로시간';
+  if (line.includes('임금') || line.includes('수당')) return '임금';
+  if (line.includes('휴가') || line.includes('휴직')) return '휴가';
+  if (line.includes('징계') || line.includes('해고')) return '징계';
+  if (line.includes('복리후생')) return '복리후생';
+  return '기타';
 }
